@@ -54,79 +54,70 @@ const data = [
   }
 ];
 
-function LinearGradient(props){
+function GradientOutput(props){
+  return(
+    <linearGradient id={`${props.dataKey}_gradient`} x1="0" y1="0" x2="0" y2="1">
+    <stop stopColor="red" offset={props.percentInterval[props.dataKey][1]} />
+    <stop stopColor={props.color} offset={props.percentInterval[props.dataKey][1]} />
+    <stop stopColor={props.color} offset={props.percentInterval[props.dataKey][0]} />
+    <stop stopColor="red" offset={props.percentInterval[props.dataKey][0]} />
+  </linearGradient>
+  )
+}
 
-  const [pvPercentInterval, setPvInterval] = useState();
-  const [uvPercentInterval, setUvInterval] = useState();
+function RedLinearGradient(props){
 
-  const findIntrval = function(arr){
-    let data=arr.slice(0);
-    let uvTmp=0;
-    let pvTmp=0;
-    let count=0;
-    data.forEach(e => {
-        uvTmp += e.uv;
-        pvTmp += e.pv;
-        ++count;
-    });
+  const [percentInterval, setPercentInterval] = useState();
 
-    const uvAvg=uvTmp/count;
-    const pvAvg=pvTmp/count;
-
-    uvTmp=0;
-    pvTmp=0;
-    data.forEach(e => {
-        uvTmp+=((e.uv-uvAvg)**2);
-        pvTmp+=((e.pv-pvAvg)**2);
-    })
-
-    const uvStddev=Math.sqrt(uvTmp/count);
-    const pvStddev=Math.sqrt(pvTmp/count);
-    
-    const uvInterval = [uvAvg-uvStddev, uvAvg+uvStddev];
-    const pvInterval = [pvAvg-pvStddev, pvAvg+pvStddev];
-    
-    function pvIntervalToGradient(){
-      data.sort((a,b)=>{
-        return a.pv-b.pv;
-      })
-      let per=data[data.length-1].pv - data[0].pv;
-      setPvInterval([`${100-(100*(pvInterval[0]-data[0].pv))/per}%`, `${(100*(data[data.length-1].pv-pvInterval[1]))/per}%`]);
-    }
-    function uvIntervalToGradient(){
-      data.sort((a,b)=>{
-        return a.uv-b.uv;
-      })
-      let per=data[data.length-1].uv - data[0].uv;
-      setUvInterval([`${100-(100*(pvInterval[0]-data[0].uv))/per}%`, `${(100*(data[data.length-1].uv-uvInterval[1]))/per}%`]);
-    }
-    pvIntervalToGradient();
-    uvIntervalToGradient();
-  }
   useEffect(() => {
-    findIntrval(props.data)
-  }, [props.data])
+    const findIntrval = function(){
+      let data=props.data.slice(0);
+      let intervals={};
+      props.dataKeys.forEach(key => {
+        let tmp=0;
+        data.forEach(e => {
+          tmp += e[key[0]];
+        })
+        const avg=tmp/data.length;
+        tmp=0;
+        data.forEach(e => {
+          tmp+=((e[key[0]]-avg)**2);
+        });
+        const stddev=Math.sqrt(tmp/data.length);
+        const interval = [avg-stddev, avg+stddev];
+        console.log(interval)
+        data.sort((a,b)=>{
+          return a[key[0]]-b[key[0]];
+        })
+        let per=data[data.length-1][key[0]] - data[0][key[0]];
+        intervals[key[0]]=[`${100-(100*(interval[0]-data[0][key[0]]))/per}%`, `${(100*(data[data.length-1][key[0]]-interval[1]))/per}%`]; 
+      })
+      setPercentInterval(intervals);
+    }();
+
+    let lines = document.querySelectorAll(".recharts-line path");
+    for(let i=0;i<props.dataKeys.length;i++){
+      lines[i].setAttribute("stroke", `url(#${props.dataKeys[i][0]}_gradient)`);
+    }
+  }, [props.data, props.dataKeys]);
   
-  if(!pvPercentInterval){
+  const gradients=props.dataKeys.map(e => (
+    <GradientOutput 
+    percentInterval={percentInterval}
+    dataKey={e[0]}
+    color={e[1]}
+    key={e[0]}/>
+  ));
+
+  if(!percentInterval){
     return(
       <div></div>
     )
   }else{
     return(
-      <svg xmlns="http://www.w3.org/2000/svg"  width="300" height="100" viewBox="0 0 300 100">
+      <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 300 100">
       <defs>
-          <linearGradient id="pv_gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="red" offset={pvPercentInterval[1]} />
-            <stop stopColor="#8884d8" offset={pvPercentInterval[1]} />
-            <stop stopColor="#8884d8" offset={pvPercentInterval[0]} />
-            <stop stopColor="red" offset={pvPercentInterval[0]} />
-          </linearGradient>
-          <linearGradient id="uv_gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="red" offset={uvPercentInterval[1]} />
-            <stop stopColor="#82ca9d" offset={uvPercentInterval[1]} />
-            <stop stopColor="#82ca9d" offset={uvPercentInterval[0]} />
-            <stop stopColor="red" offset={uvPercentInterval[0]} />
-          </linearGradient>
+        {gradients}
       </defs>
       </svg>
     )
@@ -134,17 +125,8 @@ function LinearGradient(props){
 }
 
 export default function App() {
-
-    useEffect(()=>{
-      let lines = document.querySelectorAll(".recharts-line path");
-      lines[0].setAttribute("stroke", "url(#pv_gradient)");
-      lines[1].setAttribute("stroke", "url(#uv_gradient)");
-    },[]);
- 
     return(
     <div>
-      <LinearGradient 
-      data={data}/>
       <LineChart
         width={800}
         height={400}
@@ -169,8 +151,12 @@ export default function App() {
         />
         <Line type="monotone" dataKey="uv" stroke="#82ca9d" />
       </LineChart>
+      <RedLinearGradient 
+      data={data}
+      dataKeys={[["pv", "#8884d8"], ["uv", "#82ca9d"]]}/>
     </div>
     )
 }
+
 
 
